@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "muscles-permissions"
+version = "0.1.1"
+description = "Permission declarations and policy evaluation for Muscles"
+requires-python = ">=3.10,<4.0"
+dependencies = ["muscles>=1.0.0rc1,<2.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/butkoden/muscles-permissions"
+Repository = "https://github.com/butkoden/muscles-permissions"
+Documentation = "https://github.com/butkoden/muscles-permissions#readme"
+Releases = "https://github.com/butkoden/muscles-permissions/releases"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["muscles.permissions*"]

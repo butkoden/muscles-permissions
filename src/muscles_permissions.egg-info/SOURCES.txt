@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/muscles/permissions/__init__.py
+src/muscles/permissions/package.py
+src/muscles/permissions/permissions.py
+src/muscles_permissions.egg-info/PKG-INFO
+src/muscles_permissions.egg-info/SOURCES.txt
+src/muscles_permissions.egg-info/dependency_links.txt
+src/muscles_permissions.egg-info/requires.txt
+src/muscles_permissions.egg-info/top_level.txt
+tests/test_integration.py
+tests/test_permissions.py
