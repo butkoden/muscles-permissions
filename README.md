@@ -84,13 +84,17 @@ at the first `True`. Handler errors propagate and do not grant permission.
 Handlers may call `context.resolve(ServiceInterface)` to obtain a service
 registered in the application container, without importing its implementation.
 For route checks a request-scoped resolver is used when available. Explicit
-`policies` bypasses the configured `PolicySource`, so only trusted application
-code may choose that list; never treat a caller-supplied list as an assignment.
+`policies` can narrow the configured `PolicySource` assignment but cannot grant
+checks that the source did not assign. Never treat a caller-supplied list as an
+assignment.
 
 An optional `PolicySource` service supplies assignments. Register it in the
 application container before the evaluator is first resolved. Its
 `get_policies(permission, context)` returns policy IDs or `None` for defaults.
 It is consulted for each evaluation; persistence is supplied by the application.
+When code passes an explicit policy list, the evaluator intersects it with the
+assigned list. Business code can narrow the checks used for an operation, but
+cannot bypass the subject's assigned policies.
 
 For ASGI `RestApi`, `@api.init(..., permission=DELETE_DOCUMENT)` associates a
 route with a registered declaration. Mounting fails for an unknown ID. After

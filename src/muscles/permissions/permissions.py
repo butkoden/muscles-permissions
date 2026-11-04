@@ -151,9 +151,19 @@ class PermissionEvaluator:
             context = replace(context, services=self.services)
         permission_id = permission.id if isinstance(permission, Permission) else permission
         definition = self.registry.get(permission_id)
-        selected = policies
-        if selected is None and self.source is not None:
-            selected = self.source.get_policies(definition, context)
+        assigned = self.source.get_policies(definition, context) if self.source is not None else None
+        if policies is None:
+            selected = assigned
+        elif assigned is None:
+            selected = policies
+        else:
+            if isinstance(policies, str):
+                raise TypeError("policies must be a sequence of policy ids")
+            explicit = tuple(policies)
+            if any(policy_id not in definition.policies for policy_id in explicit):
+                raise ValueError("Unknown permission policy")
+            selected_ids = set(assigned)
+            selected = tuple(policy_id for policy_id in explicit if policy_id in selected_ids)
         return definition.evaluate(context, selected)
 
     def require(self, permission: Permission | str, context: PermissionContext,
