@@ -1,6 +1,0 @@
-Metadata-Version: 2.1
-Name: muscles-permissions
-Version: 0.1.0
-Summary: Permission declarations and policy evaluation for Muscles
-Requires-Python: <4.0,>=3.10
-Requires-Dist: muscles<2.0.0,>=1.0.0rc1
