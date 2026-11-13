@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from muscles.core import MusclesPackage, PackageService, RoutePermissionChecker, get_application_registry
 
-from .permissions import PermissionContext, PermissionEvaluator, PermissionRegistry, PolicySource
+from .permissions import (PermissionContext, PermissionEvaluator, PermissionRegistry,
+                          PermissionResourceRegistry, PolicySource)
 
 
 class _PermissionRouteChecker(RoutePermissionChecker):
@@ -33,6 +34,8 @@ class PermissionsPackage(MusclesPackage):
         del runtime
         application_registry = get_application_registry(app)
         registry = PermissionRegistry(application_registry.permissions, application_registry.permission_policy_extensions)
+        resource_registry = PermissionResourceRegistry()
+        application_registry.subscribe_extensions("muscles.permissions.resources", resource_registry.register)
 
         def build_evaluator():
             source = self.source
@@ -45,6 +48,7 @@ class PermissionsPackage(MusclesPackage):
 
         return [
             PackageService(PermissionRegistry, registry),
+            PackageService(PermissionResourceRegistry, resource_registry),
             PackageService(PermissionEvaluator, build_evaluator),
             PackageService(RoutePermissionChecker, lambda: _PermissionRouteChecker(
                 app.container.resolve(PermissionEvaluator)

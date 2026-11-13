@@ -1,10 +1,11 @@
 import pytest
 
-from muscles.core import BearerJwtAuth, MusclesPackage, get_application_registry, inspect_application, install_package
+from muscles.core import BearerJwtAuth, MusclesPackage, PackageExtension, get_application_registry, inspect_application, install_package
 from muscles.asgi import MuscularAsgiApp, RestApi, TestClient, asgi_app, mount_api
 from muscles.permissions import (
     Permission, PermissionContext, PermissionDenied, PermissionEvaluator,
-    PermissionRegistry, PermissionsPackage, Policy, PolicyExtension, PolicySource,
+    PermissionRegistry, PermissionResourceHandler, PermissionResourceRegistry,
+    PermissionsPackage, Policy, PolicyExtension, PolicySource,
 )
 
 
@@ -224,3 +225,70 @@ def test_extension_collisions_and_missing_permission_are_rejected():
     install_package(app, {}, Missing())
     with pytest.raises(ValueError, match="Unknown permissions"):
         asgi_app(app)
+
+
+def test_permission_resource_registry_sees_handlers_registered_after_permissions_package():
+    handler = PermissionResourceHandler(
+        resource_type="notes:note",
+        permissions={"attach": "notes:notes.update"},
+        resolver=lambda uid, context: {"uid": uid},
+    )
+
+    class NotesPackage(MusclesPackage):
+        namespace = "notes"
+
+        def permissions(self):
+            return [Permission(
+                "notes:notes.update",
+                "Update note",
+                {"authenticated": Policy("Authenticated", lambda context: context.subject is not None)},
+                ("authenticated",),
+            )]
+
+        def extensions(self):
+            return [PackageExtension("muscles.permissions.resources", handler)]
+
+    class App:
+        pass
+
+    app = App()
+    install_package(app, {}, PermissionsPackage())
+    resources = app.container.resolve(PermissionResourceRegistry)
+    assert resources.get("notes:note") is None
+
+    install_package(app, {}, NotesPackage())
+
+    assert resources.get("notes:note") is handler
+    get_application_registry(app).validate_permission_extensions()
+    resources.validate(app.container.resolve(PermissionRegistry))
+
+
+def test_permission_resource_registry_receives_handlers_registered_before_permissions_package():
+    handler = PermissionResourceHandler("notes:note", {"read": "notes:read"}, lambda uid, context: uid)
+
+    class NotesPackage(MusclesPackage):
+        namespace = "notes"
+
+        def permissions(self):
+            return [Permission("notes:read", "Read", {"all": Policy("All", lambda context: True)}, ("all",))]
+
+        def extensions(self):
+            return [PackageExtension("muscles.permissions.resources", handler)]
+
+    class App:
+        pass
+
+    app = App()
+    install_package(app, {}, NotesPackage())
+    install_package(app, {}, PermissionsPackage())
+    resources = app.container.resolve(PermissionResourceRegistry)
+    assert resources.get("notes:note") is handler
+    resources.validate(app.container.resolve(PermissionRegistry))
+
+
+def test_permission_resource_registry_rejects_unknown_permissions():
+    resources = PermissionResourceRegistry([
+        PermissionResourceHandler("notes:note", {"read": "notes:missing"}, lambda uid, context: uid),
+    ])
+    with pytest.raises(ValueError, match="notes:missing"):
+        resources.validate(PermissionRegistry())

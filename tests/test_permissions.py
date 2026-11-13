@@ -1,7 +1,8 @@
 import pytest
 
 from muscles.permissions import (Permission, PermissionContext, PermissionDenied,
-                                 PermissionEvaluator, PermissionRegistry, Policy)
+                                 PermissionEvaluator, PermissionRegistry,
+                                 PermissionResourceHandler, PermissionResourceRegistry, Policy)
 
 
 def test_default_and_selected_policies_use_or_and_empty_denies():
@@ -119,3 +120,29 @@ def test_register_policy_exposes_extension_and_rejects_conflicts():
         registry.register_policy(permission.id, "editor", Policy("Another editor", lambda ctx: True))
     with pytest.raises(KeyError):
         registry.register_policy("missing:read", "editor", Policy("Editor", lambda ctx: True))
+
+
+def test_permission_resource_registry_registers_handlers_and_rejects_duplicates():
+    resolver = lambda resource_uid, context: {"uid": resource_uid}
+    handler = PermissionResourceHandler(
+        resource_type="notes:note",
+        permissions={"attach": "notes:notes.update"},
+        resolver=resolver,
+    )
+    registry = PermissionResourceRegistry()
+
+    registry.register(handler)
+
+    assert registry.get("notes:note") is handler
+    assert registry.get("missing:resource") is None
+    with pytest.raises(ValueError, match="Duplicate permission resource handler"):
+        registry.register(handler)
+    with pytest.raises(TypeError, match="Expected a PermissionResourceHandler"):
+        registry.register(object())
+
+
+def test_permission_resource_handler_requires_permission_and_callable_resolver():
+    with pytest.raises(ValueError, match="action permissions"):
+        PermissionResourceHandler("notes:note", {}, lambda uid, context: None)
+    with pytest.raises(ValueError, match="resolver must be callable"):
+        PermissionResourceHandler("notes:note", {"attach": "notes:update"}, None)

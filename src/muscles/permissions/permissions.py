@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
-from typing import Any, Callable, Mapping, Protocol, Sequence
+from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 
 class ServiceResolver(Protocol):
@@ -127,6 +127,65 @@ class PolicySource(Protocol):
     def get_policies(self, permission: Permission, context: PermissionContext) -> Sequence[str] | None:
         """Return assigned policies, or None to use the permission defaults."""
         ...
+
+
+@dataclass(frozen=True)
+class PermissionResourceHandler:
+    """Package-owned resolver and action permissions for a resource type."""
+
+    resource_type: str
+    permissions: Mapping[str, str]
+    resolver: Callable[[str, PermissionContext], Any | None]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.resource_type, str) or not self.resource_type:
+            raise ValueError("Permission resource type is required")
+        if not callable(self.resolver):
+            raise ValueError("Permission resource resolver must be callable")
+        permissions = dict(self.permissions)
+        if not permissions or any(
+            not isinstance(action, str) or not action
+            or not isinstance(permission_id, str) or not permission_id
+            for action, permission_id in permissions.items()
+        ):
+            raise ValueError("Permission resource handler must declare action permissions")
+        object.__setattr__(self, "permissions", MappingProxyType(permissions))
+
+
+class PermissionResourceRegistry:
+    """Registry for package-owned resource loading and action permission mapping."""
+
+    def __init__(
+        self,
+        handlers: Mapping[str, PermissionResourceHandler] | Iterable[PermissionResourceHandler] | None = None,
+    ) -> None:
+        self._handlers = handlers if isinstance(handlers, dict) else {}
+        if handlers is not None and not isinstance(handlers, Mapping):
+            for handler in handlers:
+                self.register(handler)
+        elif handlers is not None and not isinstance(handlers, dict):
+            self._handlers.update(handlers)
+
+    def register(self, handler: PermissionResourceHandler) -> None:
+        if not isinstance(handler, PermissionResourceHandler):
+            raise TypeError("Expected a PermissionResourceHandler")
+        if handler.resource_type in self._handlers:
+            raise ValueError(f"Duplicate permission resource handler: {handler.resource_type}")
+        self._handlers[handler.resource_type] = handler
+
+    def get(self, resource_type: str) -> PermissionResourceHandler | None:
+        return self._handlers.get(resource_type)
+
+    def validate(self, permissions: PermissionRegistry) -> None:
+        missing = set()
+        for handler in self._handlers.values():
+            for permission_id in handler.permissions.values():
+                try:
+                    permissions.get(permission_id)
+                except KeyError:
+                    missing.add(permission_id)
+        if missing:
+            raise ValueError(f"Unknown permissions for resource handlers: {sorted(missing)}")
 
 
 class PermissionDenied(PermissionError):
